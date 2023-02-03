@@ -1,26 +1,63 @@
+from functools import update_wrapper
 import os
 import click
 from .generate_base_models import *
 from .process_base_models import *
-
+from .generate_yml import *
 
 def get_file_name(file_path):
     return os.path.basename(file_path)
 
 
-@click.group(help='Generate and process base dbt models')
+@click.group(chain=True, invoke_without_comand=True, help='Generate and process base dbt models')
+
 def dbt_generator():
     pass
 
+@dbt_generator.result_callback()
+def process_commands(processors):
+    stream = ()
+    for processor in processors:
+        stream = processor(stream)
+    for _ in stream():
+        pass
 
-@dbt_generator.command(help='Gennerate base models based on a .yml source')
-@click.option('-s', '--source-yml', type=click.Path(), help='Source .yml file to be used')
-@click.option('-o', '--output-path', type=click.Path(), help='Path to write generated models')
+def processor(f):
+  def new_func(*args, **kwargs):
+    def processor(stream):
+      return f(stream,*args,**kwargs)
+    return processor
+  return update_wrapper(new_func,f)
+@dbt_generator.command(help='Generate base yml files')
+@click.option('-s','--source', type=str, help='name of schema to generate')
+@click.option('-o','--output', type=click.Path(), default='', help='output of base code file')
+@click.option('-y','--yml-prefix', type=str, default ='', help='Prefix for .yml file')
+def ymlmake(source, output, yml_prefix):
+    ymlfile = generate_yml(source)  
+    filepath = generate_yml_filepath(source, output, yml_prefix)
+    file_yml = open(filepath,'w',newline='')
+    file_yml.write(ymlfile)
+
+@dbt_generator.command(help='Generate base yml files')
+@click.option('-s','--source', type=str, help='name of schema to generate')
+@click.option('-o','--output', type=click.Path(), default='', help='output of base code file')
+@click.option('-y','--yml-prefix', type=str, default ='', help='Prefix for .yml file')
+def ymlload(source, output, yml_prefix):
+    ymlfile = generate_yml(source)  
+    filepath = generate_yml_filepath(source, output, yml_prefix)
+    file_yml = open(filepath,'w',newline='')
+    file_yml.write(ymlfile)
+
+
+
+@dbt_generator.command(help='Generate base models based on a .yml source')
+@click.option('-mc','--macro-name', type=str, default = 'generate_base_model' , help='select macro to be used')
 @click.option('-m', '--model', type=str, default='', help='Select one model to generate')
 @click.option('-c', '--custom_prefix', type=str, default='', help='Enter a Custom String Prefix for Model Filename')
 @click.option('--model-prefix', type=bool, default=False, help='Prefix model name with source_name + _')
 @click.option('--source-index', type=int, default=0, help='Index of the source to generate base models for')
-def generate(source_yml, output_path, source_index, model, custom_prefix, model_prefix):
+def generate(macro_name, source_yml, output_path, source_index, model, custom_prefix, model_prefix):
+    source_yml = generate_yml_filepath(source, output, yml_prefix)
     tables, source_name = get_base_tables_and_source(source_yml, source_index)
     if model:
         tables = [model]
@@ -28,9 +65,24 @@ def generate(source_yml, output_path, source_index, model, custom_prefix, model_
         file_name = custom_prefix + table + '.sql'
         if model_prefix:
             file_name = source_name + '_' + file_name
-        query = generate_base_model(table, source_name)
+        query = generate_base_model(macro_name, table, source_name)
         file = open(os.path.join(output_path, file_name), 'w', newline='')
         file.write(query)
+
+@dbt_generator.command(help='Gennerate base models based on a .yml source')
+@click.option('-mc','--macro-name', type=str, default = 'generate_base_model' , help='select macro to be used')
+@click.option('-s', '--source', type=click.Path(), help='Source .yml file to be used')
+@click.option('-o', '--output', type=click.Path(), help='Path to write generated models')
+@click.option('-y','--yml-prefix', type=str, default ='', help='Prefix for .yml file')
+@click.option('-m', '--model', type=str, default='', help='Select one model to generate')
+@click.option('-c', '--custom_prefix', type=str, default='', help='Enter a Custom String Prefix for Model Filename')
+@click.option('--model-prefix', type=bool, default=False, help='Prefix model name with source_name + _')
+@click.option('--source-index', type=int, default=0, help='Index of the source to generate base models for')
+def generateall(macro_name, source,  output, yml_prefix, source_index, model, custom_prefix, model_prefix):
+    generateyml(source, output, yml_prefix)
+    source_yml =  generate_yml_filepath(source, output, yml_prefix)
+    output_path = output
+    generate(macro_name, source_yml, output_path, source_index, model, custom_prefix, model_prefix )
 
 
 @dbt_generator.command(help='Transform base models in a directory using a transforms.yml file')
