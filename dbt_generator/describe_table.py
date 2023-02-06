@@ -1,11 +1,10 @@
 import subprocess
-import os
 from platform import system
 
-def generate_yml(source):
-	print(f'Generating yml file for "{source}" ')
+def describe_table(source,table,output,condition):
+	print(f'Generating exploratory table for "{table}" in "{output}" ')
 	bash_command = f'''
-		dbt run-operation generate_source --args \'{{"schema_name": "{source}"}}\'
+		dbt run-operation source_describe --args \'{{"source_name": "{source}", "table_name":"{table}", "exploratory_schema":"{output}","condition":"{condition}"}}\'
 	'''
 	if system() == 'Windows':
 	    output = subprocess.check_output(["powershell.exe",bash_command]).decode("utf-8")
