@@ -16,7 +16,7 @@
   {% set column_datetime = [] %}
   {% set column_json = [] %}
   {% set column_others = [] %}
-{# Classifying columns base on column name and data type. Currently relying on gazillion if else, needs improvement #}
+{# Classifying columns base on column name and data type. Currently relying on gazillion if else, need improvement #}
 
 {% for column in columns %}
      {% if '_id' in column.name|lower or column.name == 'id'%}
@@ -24,7 +24,7 @@
       {% do column_id.append(column.name|lower) %}
     {% elif '_fivetran' in column.name|lower %}
       
-      {% do column_fivetran.append(column.name|lower) %} {# Change condition here to adjust for fivetran/stitch/airbyte. Will add variable for this soon #}
+      {% do column_fivetran.append(column.name|lower) %}
 
     {% elif column.dtype in ('INT64','FLOAT64','NUMERIC','BIGNUMERIC') and column_name not in column_id %}
       
@@ -61,26 +61,21 @@
 {%- endif %}
 
 with source as (
-
     select * from {% raw %}{{ source({% endraw %}'{{ source_name }}', '{{ table_name }}'{% raw %}) }}{% endraw %}
-    {%- if partition_field is not none %}
-    {% raw %}{% if target.name == 'dev' %}{% endraw %} {#-enable devmode query constraint, reducing development cost. Need to provide partition variable-#}
+    {%- if partition_field is not none -%}
+    {% raw %}{% if target.name == 'dev' %}{% endraw %}
     where  {{ partition_field }} >= date_sub(current_date, interval 3 day) 
     {% raw %}{% endif %}{% endraw %}
     {%-endif %}
-
 ),
 
-
-
 renamed as (
-
- select
-        {%- if column_id|length > 0 %} {#- Only generate query if column type exists. same loop for all other column types. -#}
+    select
+        {%- if column_id|length > 0 %} {#- Only generate query if column type exists.  -#}
         
         {%- for id in column_id -%}
         {{"," if not loop.first}}
-        {{"--id_column" if loop.first -}} {#- Comment to separte columns + indicate type.  -#}
+        {{"--id_column" if loop.first -}} {#- Comment to separte columns from each other.  -#}
         {{"\n        " if loop.first -}} {#- Ensure first column in loop get proper spacing  -#}
         {{ id }}
         {%- endfor -%}
@@ -116,7 +111,7 @@ renamed as (
         
         {%- if column_number|length > 0 %}
         {%- for fct in column_number -%}
-        {% if (column_string+column_id+column_date+column_datetime)|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %} {#- Timezone parsing. To date conversion can be implemented -#}
+        {% if (column_string+column_id+column_date+column_datetime)|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
         {{"--number_column" if loop.first -}} 
         {{"\n        " if loop.first -}}
         {{fct}}     
@@ -138,7 +133,7 @@ renamed as (
         ,          
         {{"--boolean_column" if loop.first -}}  
         {{"\n        " if loop.first -}}
-        {{boolean_v}} {%- if 'is_' not in boolean_v %} as {{'is_'~boolean_v}}  {%- endif -%} {#- Boolean columns renaming. Other conversion can be applied -#}
+        {{boolean_v}} {%- if 'is_' not in boolean_v %} as {{'is_'~boolean_v}}  {%- endif -%}
             {%- endfor -%}
         {%- endif %}                    
 
@@ -146,7 +141,7 @@ renamed as (
          
             {%- for fivetran in column_fivetran -%}
         ,            
-        {{"--fivetran_column" if loop.first -}}  {#- Fivetrand default columns. Adjust detection/ column name appropriately for your ingestion tools in  -#}
+        {{"--fivetran_column" if loop.first -}}
         {{"\n        " if loop.first -}}
         {{fivetran}}
             {%- endfor -%}
@@ -241,7 +236,7 @@ with source as (
 
     
     select * from {% raw %}{{ source({% endraw %}'{{ source_name }}', '{{ table_name }}'{% raw %}) }}{% endraw %}
-    {%- if partition_field is not none %}
+    {%- if partition_field is not none -%}
     {% raw %}{% if target.name == 'dev' %}{% endraw %}
     where  {{ partition_field }} >= date_add(day, -3, current_date()) 
     {% raw %}{% endif %}{% endraw %}
@@ -252,7 +247,7 @@ with source as (
 
 
 renamed as (
-select
+    select
         {%- if column_id|length > 0 %} {#- Only generate query if column type exists.  -#}
         
         {%- for id in column_id -%}
@@ -266,7 +261,7 @@ select
    
         {%- if column_string|length > 0 %} 
             {%- for dimension in column_string -%} 
-            {% if column_id|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
+            {% if column_id|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %} {#- Ensure , order are still correct when there are certain columns type missing -#}
         {{"--string_column" if loop.first-}} 
         {{"\n        " if loop.first -}}
         {{ dimension }}
@@ -275,7 +270,7 @@ select
 
         {%- if column_date|length > 0 %}
         {%- for date in column_date  -%}
-        {% if column_string+column_id |length == 0 %} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {% if (column_string+column_id) |length == 0 %} {{"," if not loop.first}} {% else -%} , {% endif %}
         {{"--date_column" if loop.first -}} 
         {{"\n        " if loop.first -}}
         {{date}}
@@ -284,7 +279,7 @@ select
          
         {%- if column_datetime|length > 0 %}
         {%- for datetime in column_datetime -%}
-        {% if column_string+column_id+column_date|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {% if (column_string+column_id+column_date)|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
         {{"--timestamp_column" if loop.first -}}
         {{"\n        " if loop.first -}}
         datetime({{datetime}} {{ ", "~timezone if timezone is not none }} ) as {{ datetime }}
