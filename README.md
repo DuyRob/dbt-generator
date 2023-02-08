@@ -1,15 +1,20 @@
 # Lazy-codegen
 
-Based off dbt-generator.For sources with 10+ models, this package will save you a lot of time by generating base models in bulk and transform them for common fields automatically - casting timestamp field to assigned timezone, change boolean column_name  , and group columns together by data type. 
+Heavily 'inspired' by dbt-generator. Ok, I cloned the entire thing. I only take credit for the macros. The rest is all Tuan Chris. 
 
- There is also the describe function allowing you to perform basic exploratory on your source tables. However, every describe function will run over your entire table, so ensure to use them with a condition clause. 
+The only reason I'm not PR this to dbt-generator  is because it's a public repo, and my code is far too spaghetti to have our CTO review it. I like Joon, and rather not risk my job security like that. 
+
+
+For sources with 10+ models, this package will save you a lot of time by generating base models in bulk and transform them for common fields automatically - casting timestamp field to assigned timezone, change boolean column_name  , and group columns together by data type. 
+
+There is also the describe function allowing you to perform basic exploratory on your source tables. However, every describe function will run over your entire table, so ensure to use them with a condition clause. 
  
- This currently works for Snowflake and Bigquery, for dbt version 1.0.8 and up. 
+This currently works for Snowflake and Bigquery, for dbt version 1.0.8 and up. 
 
 
 ## Installation
 
-To use this package, you need dbt installed with a profile configured. You will also need to copy the lazy_codgen package from this repo to your macro folder.  
+To use this package, you need dbt installed with a profile configured. You will also need to copy the lazy_codgen folder from this repo to your macro folder.  
 
 
 Install the package in the same environment with your dbt installation by running: 
@@ -18,7 +23,7 @@ Install the package in the same environment with your dbt installation by runnin
 pip install -e /your/directory
 ```
 
-This package should be executed inside your dbt repo.
+This package should be executed inside your dbt repo. 
 
 Note: If you want to use the lint function, you'll need Sqlfluff installed. 
 
