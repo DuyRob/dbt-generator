@@ -37,8 +37,9 @@ def ymlgen(source, output, yml_prefix):
 @click.option('-m', '--model', type=str, default='', help='Select one model to generate')
 @click.option('-c', '--custom_prefix', type=str, default='', help='Enter a Custom String Prefix for Model Filename')
 @click.option('--model-prefix', type=bool, default=False, help='Prefix model name with source_name + _')
+@click.option ('-d','--describe', is_flag = True, help='Describe table aftergenerating them')
 @click.option('--source-index', type=int, default=0, help='Index of the source to generate base models for')
-def genbase(source_yml, macro_name, output_path, source_index, model, custom_prefix, model_prefix):
+def genbase(source_yml, macro_name, output_path, source_index, model, describe, custom_prefix, model_prefix):
     tables, source_name = get_base_tables_and_source(source_yml, source_index)
     if model:
         tables = [model]
@@ -46,6 +47,8 @@ def genbase(source_yml, macro_name, output_path, source_index, model, custom_pre
         file_name = custom_prefix + table + '.sql'
         if model_prefix:
             file_name = source_name + '_' + file_name
+        if describe:
+            describe_table( source_name, table, 'exploratory')
         query = generate_base_model(table, macro_name, source_name)
         file = open(os.path.join(output_path, file_name), 'w', newline='')
         file.write(query)
