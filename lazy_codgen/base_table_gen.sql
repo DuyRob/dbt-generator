@@ -5,6 +5,8 @@
 {% set source_relation = source(source_name, table_name) %}
 {% set columns = adapter.get_columns_in_relation(source_relation) %}
 {% set re = modules.re %}
+  {% set column_id = [] %}
+  {% set column_fivetran = [] %}
   {% set column_boolean = [] %}
   {% set column_number = [] %}
   {% set column_string = [] %}
@@ -14,8 +16,14 @@
   {% set column_others = [] %}
 
 {% for column in columns %}
+     {% if '_id' in column.name|lower or column.name == 'id'%}
+      
+      {% do column_id.append(column.name|lower) %}
+    {% elif '_fivetran' in column.name|lower %}
+      
+      {% do column_fivetran.append(column.name|lower) %}
 
-    {% if column.dtype in ('INT64','FLOAT64','NUMERIC','BIGNUMERIC') and column_name not in column_id %}
+    {% elif column.dtype in ('INT64','FLOAT64','NUMERIC','BIGNUMERIC') and column_name not in column_id %}
       
       {% do column_number.append(column.name|lower) %}
 
@@ -63,52 +71,82 @@ with source as (
 
 renamed as (
 
-    select
-        --string column
-        {%- for dimension in column_string -%}
+ select
+        {%- if column_id|length > 0 %}
+        
+        {%- for id in column_id -%}
         {{"," if not loop.first}}
+        {{"--id_column" if loop.first -}} 
+        {{"\n        " if loop.first -}}
+        {{ id }}
+        {%- endfor -%}
+        {%- endif %}
+   
+   
+        {%- if column_string|length > 0 %}
+            {%- for dimension in column_string -%}
+            {% if column_id|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {{"--string_column" if loop.first-}} 
+        {{"\n        " if loop.first -}}
         {{ dimension }}
         {%- endfor -%}
-    
+        {%- endif %}
+
         {%- if column_date|length > 0 %}
-        --date column 
-            {%- for date in column_date  -%}
-        ,
+        {%- for date in column_date  -%}
+        {% if column_string+column_id |length == 0 %} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {{"--date_column" if loop.first -}} 
+        {{"\n        " if loop.first -}}
         {{date}}
-            {%- endfor -%}
+        {%- endfor -%}
+        {%- endif %}   
+         
+        {%- if column_datetime|length > 0 %}
+        {%- for datetime in column_datetime -%}
+        {% if column_string+column_id+column_date|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {{"--timestamp_column" if loop.first -}}
+        {{"\n        " if loop.first -}}
+        datetime({{datetime}} {{ ", "~timezone if timezone is not none }} ) as {{ datetime }}
+        {%- endfor -%}
         {%- endif %}        
         
-        {%- if column_datetime|length > 0 %}
-        --datetime columns
-            {%- for datetime in column_datetime -%}
-        ,
-        datetime({{datetime}} {{ ",timezone" if timezone is not none }} ) as {{ datetime }}
-            {%- endfor -%}
-        {%- endif %}        
         {%- if column_number|length > 0 %}
-        --number columns
-            {%- for fct in column_number -%}
-        ,
-        {{ fct }}
-            {%- endfor -%}
-        {%- endif -%}
+        {%- for fct in column_number -%}
+        {% if (column_string+column_id+column_date+column_datetime)|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {{"--number_column" if loop.first -}} 
+        {{"\n        " if loop.first -}}
+        {{fct}}     
+        {%- endfor -%}
+        {%- endif %}
         
         {%- if column_json|length > 0 %}
-        --json columns
-            {%- for json_value in column_json %}
+            {%- for json_value in column_json -%}
+        ,          
+        {{"--json_column" if loop.first -}} 
+        {{"\n        " if loop.first -}}
         {{ json_value }}
             {%- endfor -%}
         {%- endif %}
-                  
+        
+                
         {%- if column_boolean|length > 0 %}
-        --boolean columns
             {%- for boolean_v in column_boolean -%}
-        ,            
-        {{boolean_v}} as is_{[ boolean_v ]} 
+        ,          
+        {{"--boolean_column" if loop.first -}}  
+        {{"\n        " if loop.first -}}
+        {{boolean_v}} {%- if 'is_' not in boolean_v %} as {{'is_'~boolean_v}}  {%- endif -%}
             {%- endfor -%}
         {%- endif %}                    
-      
 
+        {%- if column_fivetran|length > 0 %}
+         
+            {%- for fivetran in column_fivetran -%}
+        ,            
+        {{"--fivetran_column" if loop.first -}}
+        {{"\n        " if loop.first -}}
+        {{fivetran}}
+            {%- endfor -%}
+        {%- endif %}                    
     from source
 
 )
@@ -130,7 +168,7 @@ select * from renamed
 {% set columns = adapter.get_columns_in_relation(source_relation) %}
 {% set re = modules.re %}
   {% set column_id = [] %}
-  {% set string_id = []%}
+  {% set column_fivetran = []%}
   {% set column_boolean = [] %}
   {% set column_number = [] %}
   {% set column_string = [] %}
@@ -140,23 +178,29 @@ select * from renamed
   {% set column_others = [] %}
 
 {% for column in columns %}
-    {% if column.dtype in ('INT','NUMBER','DECIMAL','NUMERIC','BIGNUMERIC','FLOAT','DOUBLE') %}
+    {% if '_id' in column.name|lower or column.name == 'id'%}
+      
+      {% do column_id.append(column.name|lower) %}
+    {% elif '_fivetran' in column.name|lower %}
+      
+      {% do column_fivetran.append(column.name|lower) %}
+    {% elif column.dtype in ('INT','NUMBER','DECIMAL','NUMERIC','BIGNUMERIC','FLOAT','DOUBLE') and column.name|lower not in (column_id + column_fivetran)%}
       
       {% do column_number.append(column.name|lower) %}
 
-    {% elif column.dtype in ('STRING', 'VARCHAR','CHAR','CHARACTER','TEXT')  %}
+    {% elif column.dtype in ('STRING', 'VARCHAR','CHAR','CHARACTER','TEXT') and column.name|lower not in (column_id + column_fivetran) %}
 
-      {% do column_string.append(column.name|lower) %}
+      {% do column_string.append(column.name|lower)  %}
 
-    {% elif column.dtype in 'BOOLEAN' %}
+    {% elif column.dtype in 'BOOLEAN' and column.name|lower not in (column_id + column_fivetran)%}
       
       {% do column_boolean.append(column.name|lower) %}
 
-    {% elif column.dtype in ('DATE') %}
-('DATETIME','TIMESTAMP')
+    {% elif column.dtype in ('DATE') and column.name|lower not in (column_id + column_fivetran) %}
+
       {% do column_date.append(column.name|lower) %}
 
-     {% elif column.dtype in ('DATETIME','TIMESTAMP') %}
+     {% elif column.dtype in ('DATETIME','TIMESTAMP') and column.name|lower not in (column_id + column_fivetran)%}
 
       {% do column_datetime.append(column.name|lower) %}
     {% elif column.dtype in ('JSON') %}
@@ -206,54 +250,84 @@ with source as (
 renamed as (
 
     select
-         --string column
-        {%- for dimension in column_string -%}
+        {%- if column_id|length > 0 %}
+        
+        {%- for id in column_id -%}
         {{"," if not loop.first}}
+        {{"--id_column" if loop.first -}} 
+        {{"\n        " if loop.first -}}
+        {{ id }}
+        {%- endfor -%}
+        {%- endif %}
+   
+   
+        {%- if column_string|length > 0 %}
+            {%- for dimension in column_string -%}
+            {% if column_id|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {{"--string_column" if loop.first-}} 
+        {{"\n        " if loop.first -}}
         {{ dimension }}
         {%- endfor -%}
+        {%- endif %}
+
         {%- if column_date|length > 0 %}
-         --date column 
-            {%- for date in column_date  -%}
-        ,
+        {%- for date in column_date  -%}
+        {% if column_string+column_id |length == 0 %} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {{"--date_column" if loop.first -}} 
+        {{"\n        " if loop.first -}}
         {{date}}
-            {%- endfor -%}
-        {%- endif %}        
+        {%- endfor -%}
+        {%- endif %}   
+         
         {%- if column_datetime|length > 0 %}
-         --datetime column 
-            {%- for datetime in column_datetime -%}
-        ,
-        datetime({{datetime}} {{ ",timezone" if timezone is not none }} ) as {{ datetime }}
-            {%- endfor -%}
+        {%- for datetime in column_datetime -%}
+        {% if column_string+column_id+column_date|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {{"--timestamp_column" if loop.first -}}
+        {{"\n        " if loop.first -}}
+        datetime({{datetime}} {{ ", "~timezone if timezone is not none }} ) as {{ datetime }}
+        {%- endfor -%}
         {%- endif %}        
+
         {%- if column_number|length > 0 %}
-          --number column
-            {%- for fct in column_number -%}
-        ,
-        {{ fct }}
-            {%- endfor -%}
-        {%- endif -%}
+        {%- for fct in column_number -%}
+        {% if (column_string+column_id+column_date+column_datetime)|length == 0 -%} {{"," if not loop.first}} {% else -%} , {% endif %}
+        {{"--number_column" if loop.first -}} 
+        {{"\n        " if loop.first -}}
+        {{fct}}     
+        {%- endfor -%}
+        {%- endif %}
         
         {%- if column_json|length > 0 %}
-         --json column
             {%- for json_value in column_json -%}
+        ,          
+        {{"--json_column" if loop.first -}} 
+        {{"\n        " if loop.first -}}
         {{ json_value }}
             {%- endfor -%}
         {%- endif %}
         
                 
         {%- if column_boolean|length > 0 %}
-         --boolean column
             {%- for boolean_v in column_boolean -%}
-        ,            
-        {{boolean_v}}
+        ,          
+        {{"--boolean_column" if loop.first -}}  
+        {{"\n        " if loop.first -}}
+        {{boolean_v}} {%- if 'is_' not in boolean_v %} as {{'is_'~boolean_v}}  {%- endif -%}
             {%- endfor -%}
         {%- endif %}                    
-      
 
+        {%- if column_fivetran|length > 0 %}
+         
+            {%- for fivetran in column_fivetran -%}
+        ,            
+        {{"--fivetran_column" if loop.first -}}
+        {{"\n        " if loop.first -}}
+        {{fivetran}}
+            {%- endfor -%}
+        {%- endif %}                    
     from source
 
 )
-
 select * from renamed
 {% endset %}
 
